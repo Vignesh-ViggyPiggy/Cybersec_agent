@@ -1,0 +1,18 @@
+# Example Test Log File
+# Multiple suspicious activities for testing
+
+2024-01-30 10:15:23 192.168.1.100 sshd[12345]: Failed password for admin from 203.0.113.42 port 55892 ssh2
+2024-01-30 10:15:25 192.168.1.100 sshd[12346]: Failed password for admin from 203.0.113.42 port 55893 ssh2
+2024-01-30 10:15:27 192.168.1.100 sshd[12347]: Failed password for admin from 203.0.113.42 port 55894 ssh2
+2024-01-30 10:15:29 192.168.1.100 sshd[12348]: Failed password for admin from 203.0.113.42 port 55895 ssh2
+2024-01-30 10:15:31 192.168.1.100 sshd[12349]: Failed password for root from 203.0.113.42 port 55896 ssh2
+
+2024-01-30 10:20:45 192.168.1.200 apache[23456]: 203.0.113.100 - - [30/Jan/2024:10:20:45] "GET /admin/config.php?cmd=cat%20/etc/passwd HTTP/1.1" 200 4523
+
+2024-01-30 10:25:10 192.168.1.150 firewall: BLOCKED: IN=eth0 OUT= SRC=198.51.100.50 DST=192.168.1.150 PROTO=TCP SPT=12345 DPT=445 
+
+2024-01-30 10:30:00 192.168.1.180 app[34567]: WARNING: Potential SQL injection attempt detected: SELECT * FROM users WHERE id='1' OR '1'='1'
+
+2024-01-30 10:35:15 192.168.1.190 system: CRITICAL: Unauthorized privilege escalation attempt by user 'guest' to root
+
+2024-01-30 10:40:22 192.168.1.210 antivirus: ALERT: Suspicious file detected: ransomware.exe - Hash: a1b2c3d4e5f6 - Quarantined

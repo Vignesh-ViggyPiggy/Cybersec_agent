@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # BERT Anomaly Detection API
+  bert-api:
+    build:
+      context: ../
+      dockerfile: cybersec_agent/docker/Dockerfile.bert
+    ports:
+      - "7000:7000"
+    environment:
+      - DEVICE=cpu
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cybersec-network
+
+  # Ollama LLM (optional - can use external)
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - cybersec-network
+
+  # CyberSec Agent API
+  cybersec-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    ports:
+      - "8080:8080"
+    environment:
+      - LLM_BASE_URL=http://ollama:11434
+      - LLM_MODEL=llama3.2
+      - BERT_API_URL=http://bert-api:7000
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      - LOG_LEVEL=INFO
+    depends_on:
+      - bert-api
+      - ollama
+    networks:
+      - cybersec-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama-data:
+
+networks:
+  cybersec-network:
+    driver: bridge

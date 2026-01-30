@@ -1,0 +1,33 @@
+# Dockerfile for BERT Anomaly Detection API
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy BERT model
+COPY model/bert_anomaly_model/ /app/model/bert_anomaly_model/
+
+# Copy BERT API code
+COPY app.py /app/
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    fastapi==0.109.0 \
+    uvicorn==0.27.0 \
+    torch==2.1.0 \
+    transformers==4.36.0 \
+    pydantic==2.5.3
+
+# Expose port
+EXPOSE 7000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:7000/health || exit 1
+
+# Run server
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7000"]
