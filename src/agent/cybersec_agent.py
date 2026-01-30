@@ -56,6 +56,12 @@ class CyberSecAgent:
         
         self.verbose = verbose
         
+        # Store tools for agent use
+        self.tools_map = {
+            'bert_anomaly_detector': self.bert_tool,
+            'brave_threat_intelligence' if settings.search_provider.lower() == 'brave' else 'duckduckgo_threat_intelligence': self.search_tool
+        }
+        
         logger.info("CyberSec Agent initialized successfully")
     
     def analyze_log(
@@ -83,7 +89,7 @@ class CyberSecAgent:
         try:
             # Step 1: Run BERT anomaly detection
             if self.verbose:
-                print("\n[1/4] Running BERT anomaly detection...")
+                print("\n[1/5] Running BERT anomaly detection...")
             
             bert_result = self.bert_tool._run(log_text)
             bert_data = self.bert_tool.get_detection_data(log_text)
@@ -95,14 +101,14 @@ class CyberSecAgent:
             
             if use_brave_search:
                 if self.verbose:
-                    print("\n[2/4] Analyzing log to identify specific threats...")
+                    print("\n[2/5] Analyzing log to identify specific threats...")
                 
                 # Use LLM to extract specific threats from the log
                 keywords = self._extract_threat_keywords(log_text, bert_result)
                 
                 if keywords:
                     if self.verbose:
-                        print(f"\n[3/4] Searching threat intelligence for: {keywords}")
+                        print(f"\n[3/5] Searching threat intelligence for: {keywords}")
                     
                     search_query = keywords
                     threat_intel = self.search_tool._run(keywords)
@@ -113,7 +119,7 @@ class CyberSecAgent:
             
             # Step 4: Generate comprehensive analysis with LLM
             if self.verbose:
-                print("\n[4/4] Generating comprehensive analysis...")
+                print("\n[4/5] Generating comprehensive analysis...")
             
             analysis_prompt = f"""{SYSTEM_PROMPT}
 
@@ -159,6 +165,33 @@ Provide your structured analysis following this format:
             parsed_result["search_sources"] = search_sources
             parsed_result["search_query"] = search_query
             
+            # Step 5: Final LangChain agent summarization and autonomous tool calling
+            if self.verbose:
+                print("\n[5/5] Running final LangChain agent for summarization and additional investigation...")
+            
+            agent_result = self._run_final_agent_analysis(parsed_result, log_text)
+            
+            if agent_result:
+                parsed_result["agent_summary"] = agent_result.get("output", "")
+                
+                # Convert agent actions to serializable format
+                agent_actions = []
+                for action_info, observation in agent_result.get("intermediate_steps", []):
+                    if isinstance(action_info, dict):
+                        agent_actions.append({
+                            "tool": action_info.get("tool", "unknown"),
+                            "tool_input": str(action_info.get("tool_input", "")),
+                            "observation": str(observation)
+                        })
+                    else:
+                        # Handle tuple format from some LangChain versions
+                        agent_actions.append({
+                            "tool": getattr(action_info, 'tool', str(action_info)),
+                            "tool_input": str(getattr(action_info, 'tool_input', '')),
+                            "observation": str(observation)
+                        })
+                parsed_result["agent_actions"] = agent_actions
+            
             logger.info(f"Analysis complete: {parsed_result.get('threat_type', 'Unknown')}, Severity: {parsed_result.get('severity', 'Unknown')}")
             
             return parsed_result
@@ -172,6 +205,103 @@ Provide your structured analysis following this format:
                 "explanation": f"Error during analysis: {str(e)}",
                 "recommended_actions": ["Review error logs", "Retry analysis"],
                 "error": str(e)
+            }
+    
+    def _run_final_agent_analysis(self, initial_analysis: Dict[str, Any], log_text: str) -> Dict[str, Any]:
+        """
+        Run final agent to summarize and optionally investigate further using LangChain tools
+        
+        Args:
+            initial_analysis: Results from the initial 4-step analysis
+            log_text: Original log text
+            
+        Returns:
+            Agent execution result with summary and any additional tool calls
+        """
+        try:
+            # Build context for the agent
+            tool_descriptions = "\n".join([
+                f"- {name}: {tool.description}" 
+                for name, tool in self.tools_map.items()
+            ])
+            
+            context = f"""You have completed an initial security log analysis. Here are the results:
+
+**Threat Type**: {initial_analysis.get('threat_type', 'Unknown')}
+**Severity**: {initial_analysis.get('severity', 'Unknown')}
+**Confidence**: {initial_analysis.get('confidence_score', 0.0)}
+
+**Explanation**: {initial_analysis.get('explanation', 'N/A')[:500]}
+
+**Recommended Actions**:
+{chr(10).join(f"- {action}" for action in initial_analysis.get('recommended_actions', [])[:3])}
+
+**Original Log** (first 300 chars):
+{log_text[:300]}
+
+Your task:
+1. Provide a concise executive summary (2-3 sentences) of the threat and its implications
+2. If you need additional information, you can use these tools:
+{tool_descriptions}
+
+Format your response as:
+SUMMARY: [your 2-3 sentence executive summary]
+TOOL_CALLS: [any tool calls you want to make, or "NONE"]
+
+If you want to call a tool, use this format:
+TOOL: tool_name
+INPUT: tool input
+---"""
+
+            # Get LLM response
+            agent_response = self.llm_client.invoke(context)
+            
+            # Parse response
+            summary_match = re.search(r'SUMMARY:\s*(.+?)(?=TOOL_CALLS:|$)', agent_response, re.DOTALL | re.IGNORECASE)
+            summary = summary_match.group(1).strip() if summary_match else agent_response[:500]
+            
+            # Check for tool calls
+            tool_calls = []
+            tool_matches = re.finditer(r'TOOL:\s*(\w+)\s+INPUT:\s*(.+?)(?=TOOL:|$|---)', agent_response, re.DOTALL | re.IGNORECASE)
+            
+            for match in tool_matches:
+                tool_name = match.group(1).strip()
+                tool_input = match.group(2).strip()
+                
+                if tool_name in self.tools_map:
+                    if self.verbose:
+                        print(f"\nAgent calling tool: {tool_name}")
+                        print(f"Input: {tool_input[:100]}...")
+                    
+                    try:
+                        tool = self.tools_map[tool_name]
+                        observation = tool._run(tool_input)
+                        tool_calls.append({
+                            "tool": tool_name,
+                            "tool_input": tool_input,
+                            "observation": observation
+                        })
+                        
+                        if self.verbose:
+                            print(f"Observation: {observation[:150]}...")
+                    except Exception as e:
+                        logger.warning(f"Tool call failed: {e}")
+                        tool_calls.append({
+                            "tool": tool_name,
+                            "tool_input": tool_input,
+                            "observation": f"Error: {str(e)}"
+                        })
+            
+            return {
+                "output": summary,
+                "intermediate_steps": [({"tool": tc["tool"], "tool_input": tc["tool_input"]}, tc["observation"]) for tc in tool_calls]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in final agent analysis: {e}")
+            return {
+                "output": f"Agent analysis skipped due to error: {str(e)}",
+                "intermediate_steps": []
             }
     
     def _extract_threat_keywords(self, log_text: str, bert_result: str) -> str:

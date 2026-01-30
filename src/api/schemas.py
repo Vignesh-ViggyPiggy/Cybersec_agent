@@ -10,6 +10,13 @@ class SearchSource(BaseModel):
     snippet: str = Field(description="Brief description or snippet")
 
 
+class AgentAction(BaseModel):
+    """Action taken by the LangChain agent"""
+    tool: str = Field(description="Name of the tool used")
+    tool_input: str = Field(description="Input provided to the tool")
+    observation: str = Field(description="Result from the tool")
+
+
 class BertAnomalyData(BaseModel):
     """BERT anomaly detection results"""
     anomaly_score: float = Field(description="Anomaly score from BERT model")
@@ -61,6 +68,14 @@ class LogAnalysisResponse(BaseModel):
     search_query: Optional[str] = Field(
         default=None,
         description="Query used for threat intelligence search"
+    )
+    agent_summary: Optional[str] = Field(
+        default=None,
+        description="Final summary from LangChain agent"
+    )
+    agent_actions: List[AgentAction] = Field(
+        default=[],
+        description="Additional tool calls made by the autonomous agent"
     )
     error: Optional[str] = Field(
         default=None,

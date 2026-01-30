@@ -221,6 +221,65 @@ const ResultViewer = ({ result, isLoading, error }) => {
           </div>
         )}
 
+        {result.agent_summary && (
+          <div className="result-section">
+            <h4>🎯 Executive Summary (LangChain Agent)</h4>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))',
+              padding: '1rem',
+              borderRadius: '8px',
+              borderLeft: '4px solid var(--primary-color)'
+            }}>
+              <p style={{ margin: 0 }}>{result.agent_summary}</p>
+            </div>
+
+            {result.agent_actions && result.agent_actions.length > 0 && (
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ 
+                  fontSize: '0.9rem', 
+                  fontWeight: 'bold', 
+                  color: 'var(--text-secondary)',
+                  marginBottom: '0.5rem'
+                }}>
+                  🔧 Agent made {result.agent_actions.length} additional tool call{result.agent_actions.length > 1 ? 's' : ''}:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {result.agent_actions.map((action, index) => (
+                    <div key={index} style={{
+                      background: 'rgba(0,0,0,0.2)',
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem'
+                    }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                        {index + 1}. Used tool: <span style={{ color: 'var(--primary-color)' }}>{action.tool}</span>
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        Input: {action.tool_input.substring(0, 100)}{action.tool_input.length > 100 ? '...' : ''}
+                      </div>
+                      <details style={{ marginTop: '0.25rem' }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          View observation
+                        </summary>
+                        <div style={{ 
+                          marginTop: '0.5rem', 
+                          padding: '0.5rem', 
+                          background: 'rgba(0,0,0,0.3)', 
+                          borderRadius: '4px',
+                          fontSize: '0.8rem',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {action.observation}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {result.raw_analysis && (
           <details style={{ marginTop: '1rem' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
