@@ -3,6 +3,7 @@ from typing import Type, Optional, List
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 from ddgs import DDGS
+from urllib.parse import quote
 from loguru import logger
 
 
@@ -76,32 +77,6 @@ class DuckDuckGoSearchTool(BaseTool):
         logger.info(f"DuckDuckGo Search Tool: Searching for '{query}'")
         
         try:
-            # Use DuckDuckGo Instant Answer API
-            api_url = f"https://api.duckduckgo.com/?q={quote(query)}&format=json"
-            
-            response = requests.get(api_url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            results = []
-            
-            # Get related topics
-            related_topics = data.get("RelatedTopics", [])
-            for topic in related_topics[:5]:
-                if isinstance(topic, dict) and "Text" in topic:
-                    results.append({
-                        "title": topic.get("Text", "")[:100],
-                        "url": topic.get("FirstURL", ""),
-                        "snippet": topic.get("Text", "")
-                    })
-            
-            # Add abstract if available
-            if data.get("Abstract"):
-                results.insert(0, {
-                    "title": data.get("Heading", query),
-                    "url": data.get("AbstractURL", ""),
-                    "snippet": data.get("Abstract", "")
-                })
             with DDGS() as ddgs:
                 search_results = list(ddgs.text(query, max_results=5))
             

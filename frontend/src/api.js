@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Automatically use the same host as the frontend
+const hostname = window.location.hostname;
+const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${hostname}:8080`;
 
 export const analyzeLog = async (logText, useBraveSearch = true) => {
   try {
@@ -13,7 +15,7 @@ export const analyzeLog = async (logText, useBraveSearch = true) => {
     if (error.response) {
       throw new Error(error.response.data.detail || 'Analysis failed');
     } else if (error.request) {
-      throw new Error('Cannot connect to API server. Please ensure the server is running on http://localhost:8080');
+      throw new Error(`Cannot connect to API server at ${API_BASE_URL}. Please ensure the server is running.`);
     } else {
       throw new Error('An unexpected error occurred');
     }
